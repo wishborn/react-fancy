@@ -1,6 +1,8 @@
 import { forwardRef, useEffect, useId, useRef } from "react";
 import { cn } from "../../../utils/cn";
 import { useControllableState } from "../../../hooks/use-controllable-state";
+import { useFieldMode } from "../mode/FieldMode.context";
+import { useInlineEdit } from "../mode/useInlineEdit";
 import { dirtyRingClasses } from "../inputs.utils";
 import type { CheckboxProps } from "./Checkbox.types";
 
@@ -21,12 +23,15 @@ export const Checkbox = forwardRef<HTMLInputElement, CheckboxProps>(
       defaultChecked = false,
       onCheckedChange,
       indeterminate,
+      mode,
     },
     ref,
   ) => {
     const autoId = useId();
     const checkboxId = id ?? autoId;
     const internalRef = useRef<HTMLInputElement | null>(null);
+    const resolvedMode = useFieldMode(mode);
+    const { showControl, interactive, enterEdit, exitEdit } = useInlineEdit(resolvedMode, disabled);
     const [checked, setChecked] = useControllableState(
       controlledChecked,
       defaultChecked,
@@ -48,8 +53,39 @@ export const Checkbox = forwardRef<HTMLInputElement, CheckboxProps>(
       xl: "h-6 w-6",
     }[size];
 
+    const glyph = indeterminate ? "—" : checked ? "✓" : "✕";
+
     return (
       <div data-react-fancy-checkbox="" className={cn("flex items-start gap-2", className)}>
+        {!showControl ? (
+          <span
+            data-react-fancy-display=""
+            data-mode="view"
+            role={interactive ? "button" : undefined}
+            tabIndex={interactive ? 0 : undefined}
+            title={interactive ? "Click to edit" : undefined}
+            onClick={interactive ? enterEdit : undefined}
+            onKeyDown={
+              interactive
+                ? (e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      enterEdit();
+                    }
+                  }
+                : undefined
+            }
+            className={cn(
+              "flex shrink-0 items-center justify-center text-zinc-700 dark:text-zinc-200",
+              sizeClasses,
+              interactive &&
+                "cursor-pointer rounded outline-none transition-colors hover:text-zinc-900 focus-visible:ring-2 focus-visible:ring-blue-500/40 dark:hover:text-white",
+            )}
+            aria-hidden={interactive ? undefined : "true"}
+          >
+            {glyph}
+          </span>
+        ) : (
         <div className="relative flex items-center">
           <input
             ref={(node) => {
@@ -66,6 +102,10 @@ export const Checkbox = forwardRef<HTMLInputElement, CheckboxProps>(
             disabled={disabled}
             required={required}
             checked={checked}
+            autoFocus={interactive}
+            onBlur={() => {
+              if (interactive) exitEdit();
+            }}
             onChange={(e) => setChecked(e.target.checked)}
             className={cn(
               sizeClasses,
@@ -75,6 +115,7 @@ export const Checkbox = forwardRef<HTMLInputElement, CheckboxProps>(
             )}
           />
         </div>
+        )}
         {(label || description) && (
           <div className="flex flex-col">
             {label && (

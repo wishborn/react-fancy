@@ -1,6 +1,8 @@
 import { forwardRef, useCallback, useRef } from "react";
 import { cn } from "../../utils/cn";
 import { useControllableState } from "../../hooks/use-controllable-state";
+import { useFieldMode } from "../inputs/mode/FieldMode.context";
+import { useInlineEdit } from "../inputs/mode/useInlineEdit";
 import type { OtpInputProps } from "./OtpInput.types";
 
 export const OtpInput = forwardRef<HTMLDivElement, OtpInputProps>(
@@ -12,6 +14,7 @@ export const OtpInput = forwardRef<HTMLDivElement, OtpInputProps>(
       disabled = false,
       autoFocus = false,
       className,
+      mode,
     },
     ref,
   ) {
@@ -20,6 +23,8 @@ export const OtpInput = forwardRef<HTMLDivElement, OtpInputProps>(
       "",
       onChange,
     );
+    const resolvedMode = useFieldMode(mode);
+    const { showControl, interactive, enterEdit, exitEdit } = useInlineEdit(resolvedMode, disabled);
     const inputsRef = useRef<(HTMLInputElement | null)[]>([]);
 
     const focusInput = useCallback(
@@ -80,8 +85,47 @@ export const OtpInput = forwardRef<HTMLDivElement, OtpInputProps>(
       [length, setValue, focusInput],
     );
 
+    if (!showControl) {
+      return (
+        <div
+          data-react-fancy-otp-input=""
+          data-mode="view"
+          ref={ref}
+          role={interactive ? "button" : undefined}
+          tabIndex={interactive ? 0 : undefined}
+          title={interactive ? "Click to edit" : undefined}
+          onClick={interactive ? enterEdit : undefined}
+          onKeyDown={
+            interactive
+              ? (e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    enterEdit();
+                  }
+                }
+              : undefined
+          }
+          className={cn(
+            "font-mono text-lg tracking-[0.4em] text-zinc-900 dark:text-zinc-100",
+            interactive &&
+              "cursor-pointer rounded-md outline-none transition-opacity hover:opacity-80 focus-visible:ring-2 focus-visible:ring-blue-500/40",
+            className,
+          )}
+        >
+          {value || "—"}
+        </div>
+      );
+    }
+
     return (
-      <div data-react-fancy-otp-input="" ref={ref} className={cn("flex gap-2", className)}>
+      <div
+        data-react-fancy-otp-input=""
+        ref={ref}
+        className={cn("flex gap-2", className)}
+        onBlur={(e) => {
+          if (interactive && !e.currentTarget.contains(e.relatedTarget as Node)) exitEdit();
+        }}
+      >
         {Array.from({ length }, (_, i) => (
           <input
             key={i}
@@ -97,7 +141,7 @@ export const OtpInput = forwardRef<HTMLDivElement, OtpInputProps>(
             onPaste={handlePaste}
             onFocus={(e) => e.target.select()}
             disabled={disabled}
-            autoFocus={autoFocus && i === 0}
+            autoFocus={(autoFocus || interactive) && i === 0}
             className="h-12 w-10 rounded-lg border border-zinc-200 bg-white text-center text-lg font-medium text-zinc-900 outline-none transition-[border-color,box-shadow] duration-150 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/40 dark:border-zinc-700 dark:bg-[#1e1e24] dark:text-zinc-100 dark:focus:border-blue-400 dark:focus:ring-blue-400/20"
             aria-label={`Digit ${i + 1}`}
           />

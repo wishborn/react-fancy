@@ -2,6 +2,9 @@ import { useRef, useState, useEffect, useCallback } from "react";
 import { cn } from "../../../utils/cn";
 import { useControllableState } from "../../../hooks/use-controllable-state";
 import { Field } from "../Field";
+import { useFieldMode } from "../mode/FieldMode.context";
+import { DisplayValue } from "../mode/DisplayValue";
+import { useInlineEdit } from "../mode/useInlineEdit";
 import { resolveOption } from "../inputs.utils";
 import type { Size } from "../../../utils/types";
 import type { MultiSwitchProps } from "./MultiSwitch.types";
@@ -30,9 +33,12 @@ export function MultiSwitch<V = string>({
   defaultValue,
   onValueChange,
   linear,
+  mode,
 }: MultiSwitchProps<V>) {
   const resolvedOptions = list.map(resolveOption);
   const fallback = defaultValue ?? resolvedOptions[0]?.value;
+  const resolvedMode = useFieldMode(mode);
+  const { showControl, interactive, enterEdit, exitEdit } = useInlineEdit(resolvedMode, disabled);
   const [value, setValue] = useControllableState(controlledValue, fallback as V, onValueChange);
 
   const containerRef = useRef<HTMLDivElement>(null);
@@ -62,12 +68,19 @@ export function MultiSwitch<V = string>({
     updateIndicator();
   }, [updateIndicator]);
 
-  const control = (
+  const control = !showControl ? (
+    <DisplayValue size={size} interactive={interactive} onActivate={enterEdit}>
+      {resolvedOptions.find((o) => o.value === value)?.label}
+    </DisplayValue>
+  ) : (
     <div
       ref={containerRef}
       data-react-fancy-multi-switch=""
       role="radiogroup"
       id={id}
+      onBlur={(e) => {
+        if (interactive && !e.currentTarget.contains(e.relatedTarget as Node)) exitEdit();
+      }}
       className={cn(
         "relative inline-flex rounded-lg border border-zinc-300 bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-800",
         dirty && "ring-2 ring-amber-400/50",
@@ -92,6 +105,7 @@ export function MultiSwitch<V = string>({
             role="radio"
             aria-checked={isSelected}
             disabled={disabled || option.disabled}
+            autoFocus={interactive && (selectedIndex === -1 ? index === 0 : isSelected)}
             onClick={() => {
               if (linear) {
                 const nextIndex = (selectedIndex + 1) % resolvedOptions.length;
